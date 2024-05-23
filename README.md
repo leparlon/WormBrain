@@ -2,8 +2,9 @@
 
 A custom node for creating AI-powered worms in Godot Engine.
 `brain.gd` and `weights.gd` use real mapping taken from a C. Elegans worm brain. Enables you to simulate it on your game. It has only 302 neurons but!
-Heavily based on this project: [Simulate the C. Elegans worm brain on your browser](https://github.com/heyseth/worm-sim)
-Drag WormNode to your scene and enjoy.
+Heavily based on this project: [Simulate the C. Elegans worm brain on your browser](https://github.com/heyseth/worm-sim)  
+
+Drag WormNode to your scene and enjoy.  
 Note: Does not handle collision well, so you need to limit where it can go on a editor property.
 
 ## Features
