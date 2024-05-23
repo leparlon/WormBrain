@@ -22,7 +22,7 @@ Note: Does not handle collision well, so you need to limit where it can go on a 
 1. Add the `WormNode` to your scene.
 2. Customize the worm's properties in the inspector.
 3. Worm will "colide" with any Area2D, and will eat any that is part of the group "worm_food"
-4. This thing is stuborn, so a wall is a mere suggestion to it. If you want to contain the worm, make sure to decrease the limiting rect on the inspector
+4. This thing is stuborn, so a wall is a just a suggestion. If you want to contain the worm, make sure to decrease the limiting rect on the inspector
 
 ## License
 This project is licensed under the MIT License.
