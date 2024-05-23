@@ -6,16 +6,16 @@ signal hunger_neurons_stimulated(stimulated)
 signal nose_touching_neurons_stimulated(stimulated)
 var BRAIN = Brain.new()
 
-@export var limitingArea = Rect2(566, 369, 400, 230)
+@export var limitingArea = Rect2(50, 50, 1000, 1000)
 @export var segment_count = 20
 @export var segment_distance = 10
 @export var hungry_worm = true
 @export var time_until_hungry_again = 2
 @export var time_scaling_factor = 1.0
 
-@export var head_texture : Texture2D
-@export var body_texture : Texture2D
-@export var tail_texture : Texture2D
+@export var head_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
+@export var body_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
+@export var tail_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
 
 var time_since_eaten = 0
 var segments = []
