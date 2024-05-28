@@ -1,15 +1,14 @@
 # Worm Brain Plugin
 
 A custom node for creating AI-powered worms in Godot Engine.
-`brain.gd` and `weights.gd` use real mapping taken from a C. Elegans worm brain (It has only 302 neurons).
-Enables you to simulate it on your game.
-Heavily based on this project: [Simulate the C. Elegans worm brain on your browser](https://github.com/heyseth/worm-sim)  
+`brain.gd` and `weights.gd` use real mapping taken from a *C. elegans* worm brain (it has only 302 neurons), enabling you to simulate it in your game.
+Heavily based on this project: [Simulate the C. elegans worm brain on your browser](https://github.com/heyseth/worm-sim).
 
-Drag WormNode to your scene and enjoy.  
-Note: Does not handle collision well, so you need to limit where it can go on a editor property.
+Drag `WormNode` to your scene and enjoy.  
+**Note:** Does not handle collision well, so you need to limit where it can go using an editor property.
 
 ## Features
-- Customizable worm behaviour and segments
+- Customizable worm behavior and segments
 - Dynamic segment creation
 - Real worm brain simulation
 
@@ -21,13 +20,54 @@ Note: Does not handle collision well, so you need to limit where it can go on a 
 ## Usage
 1. Add the `WormNode` to your scene.
 2. Customize the worm's properties in the inspector.
-3. Worm will "colide" with any Area2D, and will eat any that is part of the group "worm_food"
-4. This thing is stuborn, so a wall is a mere suggestion to it. If you want to contain the worm, make sure to decrease the limiting rect on the inspector
+3. The worm will "collide" with any `Area2D`, and will eat any that is part of the group `worm_food`.
+4. This worm is stubborn, so a wall is a mere suggestion to it. If you want to contain the worm, make sure to decrease the limiting rect in the inspector.
+
+### Communicating with the Brain
+`brain.gd` powers the brain using the weights configured in `weights.gd`.  
+You can stimulate neurons with specific functions by enabling and disabling some flags, causing these neurons to be continuously stimulated while on:
+
+```gd
+stimulateHungerNeurons
+stimulateNoseTouchNeuronsLeft
+stimulateNoseTouchNeuronsRight
+stimulateFoodSenseNeuronsLeft
+stimulateFoodSenseNeuronsRight
+stimulatePheromonSenseNeuronsLeft
+stimulatePheromonSenseNeuronsRight
+stimulateChemicalsSenseNeuronsRight
+stimulateChemicalsSenseNeuronsLeft
+stimulateTemperatureSenseNeuronsRight
+stimulateTemperatureSenseNeuronsLeft
+stimulateOdorRepelantSenseNeuronsRight
+stimulateOdorRepelantSenseNeuronsLeft
+```
+`worm.gd` configures the interface with the brain. I've implemented just a handful of signals; it's still a work in progress.
+
+```gd
+limitingArea # Global area where the worm can move
+segment_count = 20
+segment_distance = 10 
+max_scale = 1.0 # The maximum scale of the worm's girth
+min_scale = 0.3 # The minimum scale of the worm's girth
+front_rate = 0.2 # Rate of girth increase at the front
+back_rate = 0.4 # Rate of girth decrease at the back
+
+hungry_worm = true
+time_until_hungry_again = 2
+time_scaling_factor = 1.0
+
+wormBrainDelay = 0.0 # Controls the simulation speed
+```
+
+The worm has 4 sensors (`CollisionArea2D`), 2 for each side. They all are part of the same `sensor` group; the worm knows to ignore these.  
+2 big ones represent smell sense, and 2 others represent touch. Collisions with these sensors activate the corresponding neurons.
+
+If the worm collide with any CollisionArea2D whose group is "worm_food" it will eat it and emit a signal, so you can remove that food from the scene.
 
 ## License
 This project is licensed under the MIT License.
 
 ## Acknowledgements
-
-This project is heavily based (it is basically a port to Godot) on the worm-sim made by Seth Miller.
+This project is heavily based (it is basically a port to Godot) on the worm-sim made by Seth Miller.  
 Huge thanks to him for sharing that online.

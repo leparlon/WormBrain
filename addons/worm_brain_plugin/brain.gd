@@ -9,10 +9,20 @@ var fireThreshold = 30
 var accumleft = 0
 var accumright = 0
 var stimulateHungerNeurons = true
-var stimulateNoseTouchNeurons = false
-var stimulateFoodSenseNeurons = false
+var stimulateNoseTouchNeuronsLeft = false
+var stimulateNoseTouchNeuronsRight = false
+var stimulateFoodSenseNeuronsRight = false
+var stimulateFoodSenseNeuronsLeft = false
+var stimulatePheromonSenseNeuronsRight = false
+var stimulatePheromonSenseNeuronsLeft = false
+var stimulateChemicalsSenseNeuronsRight = false
+var stimulateChemicalsSenseNeuronsLeft = false
+var stimulateTemperatureSenseNeuronsRight = false
+var stimulateTemperatureSenseNeuronsLeft = false
+var stimulateOdorRepelantSenseNeuronsRight = false
+var stimulateOdorRepelantSenseNeuronsLeft = false
 var postSynaptic = {}
-var connectome = {}
+var synapses = {}
 var muscleList = []
 var mLeft = []
 var mRight = []
@@ -27,7 +37,7 @@ func setup():
 		print("Weights are empty. Please initialize weights.")
 	
 	for preSynaptic in weights.keys():
-		connectome[preSynaptic] = func():
+		synapses[preSynaptic] = func():
 			dendrite_accumulate(preSynaptic)
 
 	var neurons = [
@@ -74,6 +84,7 @@ func setup():
 		"VD6", "VD7", "VD8", "VD9"
 	]
 	
+	print ("Neuros: "+ str(neurons.size()))
 	for neuron in neurons:
 		postSynaptic[neuron] = [0, 0]
 
@@ -86,18 +97,23 @@ func setup():
 		"MDR23", "MVR07", "MVR08", "MVR09", "MVR10", "MVR11", "MVR12", "MVR13", "MVR14", "MVR15",
 		"MVR16", "MVR17", "MVR18", "MVR19", "MVR20", "MVL21", "MVR22", "MVR23"
 	]
+	print ("muscleList: "+ str(muscleList.size()))
+	
 	mLeft = [
 		"MDL07", "MDL08", "MDL09", "MDL10", "MDL11", "MDL12", "MDL13", "MDL14", "MDL15", "MDL16",
 		"MDL17", "MDL18", "MDL19", "MDL20", "MDL21", "MDL22", "MDL23", "MVL07", "MVL08", "MVL09",
 		"MVL10", "MVL11", "MVL12", "MVL13", "MVL14", "MVL15", "MVL16", "MVL17", "MVL18", "MVL19",
 		"MVL20", "MVL21", "MVL22", "MVL23"
 	]
+	print ("mLeft: "+ str(mLeft.size()))
+	
 	mRight = [
 		"MDR07", "MDR08", "MDR09", "MDR10", "MDR11", "MDR12", "MDR13", "MDR14", "MDR15", "MDR16",
 		"MDR17", "MDR18", "MDR19", "MDR20", "MDL21", "MDR22", "MDR23", "MVR07", "MVR08", "MVR09",
 		"MVR10", "MVR11", "MVR12", "MVR13", "MVR14", "MVR15", "MVR16", "MVR17", "MVR18", "MVR19",
 		"MVR20", "MVL21", "MVR22", "MVR23"
 	]
+	print ("mRight: "+ str(mRight.size()))
 
 func dendrite_accumulate(preSynaptic):
 	if preSynaptic in weights:
@@ -111,54 +127,75 @@ func dendrite_accumulate(preSynaptic):
 					print("PostSynaptic neuron ", postSynaptic, " not found in postSynaptic dictionary.")
 
 func rand_excite():
-	var connectome_keys = connectome.keys()
-	var connectome_size = connectome_keys.size()
-	if connectome_size > 0:
+	var synapses_keys = synapses.keys()
+	var synapses_size = synapses_keys.size()
+	if synapses_size > 0:
 		for i in range(40):
-			var random_key = connectome_keys[randi() % connectome_size]
+			var random_key = synapses_keys[randi() % synapses_size]
 			dendrite_accumulate(random_key)
 			if debug:
 				print("Exciting random key: ", random_key)
 
 func update():
 	if stimulateHungerNeurons:
-		if debug:
-			print("Stimulating hunger neurons")
 		dendrite_accumulate("RIML")
 		dendrite_accumulate("RIMR")
 		dendrite_accumulate("RICL")
 		dendrite_accumulate("RICR")
-		run_connectome()
-	if stimulateNoseTouchNeurons:
-		if debug:
-			print("Stimulating nose touch neurons")
-		dendrite_accumulate("FLPR")
+		run_synapses()
+	if stimulateNoseTouchNeuronsLeft:
 		dendrite_accumulate("FLPL")
 		dendrite_accumulate("ASHL")
-		dendrite_accumulate("ASHR")
 		dendrite_accumulate("IL1VL")
-		dendrite_accumulate("IL1VR")
 		dendrite_accumulate("OLQDL")
+		dendrite_accumulate("OLQVL")
+		run_synapses()
+	if stimulateNoseTouchNeuronsRight:
+		dendrite_accumulate("FLPR")
+		dendrite_accumulate("ASHR")
+		dendrite_accumulate("IL1VR")
 		dendrite_accumulate("OLQDR")
 		dendrite_accumulate("OLQVR")
-		dendrite_accumulate("OLQVL")
-		run_connectome()
-	if stimulateFoodSenseNeurons:
-		if debug:
-			print("Stimulating food sense neurons")
+		run_synapses()
+	if stimulateFoodSenseNeuronsLeft:
 		dendrite_accumulate("ADFL")
+		dendrite_accumulate("ASGL")
+		dendrite_accumulate("ASJL")
+		run_synapses()
+	if stimulateFoodSenseNeuronsRight:
 		dendrite_accumulate("ADFR")
 		dendrite_accumulate("ASGR")
-		dendrite_accumulate("ASGL")
-		dendrite_accumulate("ASIL")
-		dendrite_accumulate("ASIR")
 		dendrite_accumulate("ASJR")
-		dendrite_accumulate("ASJL")
-		run_connectome()
+		run_synapses()
+	if stimulatePheromonSenseNeuronsLeft:
+		dendrite_accumulate("ASIL")
+		run_synapses()
+	if stimulatePheromonSenseNeuronsRight:
+		dendrite_accumulate("ASIR")
+		run_synapses()
+	if stimulateChemicalsSenseNeuronsRight:
+		dendrite_accumulate("ASER")
+		run_synapses()
+	if stimulateChemicalsSenseNeuronsLeft:
+		dendrite_accumulate("ASEL")
+		run_synapses()
+	if stimulateTemperatureSenseNeuronsRight:
+		dendrite_accumulate("AFDR")
+		run_synapses()
+	if stimulateTemperatureSenseNeuronsLeft:
+		dendrite_accumulate("AFDL")
+		run_synapses()
+	if stimulateOdorRepelantSenseNeuronsRight:
+		dendrite_accumulate("AWBR")
+		run_synapses()
+	if stimulateOdorRepelantSenseNeuronsLeft:
+		dendrite_accumulate("AWBL")
+		run_synapses()
+	run_synapses()
 
-func run_connectome():
+func run_synapses():
 	if debug:
-		print("Running connectome")
+		print("Running synapses")
 	for ps in postSynaptic:
 		if not begins_with_any(ps, ["MVU", "MVL", "MDL", "MVR", "MDR"]) and postSynaptic[ps][thisState] > fireThreshold:
 			fire_neuron(ps)
