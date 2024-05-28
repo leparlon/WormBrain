@@ -20,7 +20,6 @@ Drag `WormNode` to your scene and enjoy.
 ## Quick Usage
 1. Add the `WormNode` to your scene.
 2. Customize the worm's properties in the inspector.
-<<<<<<< HEAD
 3. The worm will "collide" with any `Area2D`, and will eat any that is part of the group `worm_food`.
 4. This worm is stubborn, so a wall is a mere suggestion to it. If you want to contain the worm, make sure to decrease the limiting rect in the inspector.
 
