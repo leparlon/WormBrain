@@ -6,7 +6,7 @@ Heavily based on this project: [Simulate the C. elegans worm brain on your brows
 Drag `WormNode` to your scene and enjoy.  
 **Note:** Does not handle collision well, so you need to limit where it can go using an editor property.   
   
-See also: [FlyBrain](https://github.com/leparlon/flybrain)
+See also: [FlyBrain](https://github.com/leparlon/flybrain) - Not really usable, just interesting.
 ## Features
 - Customizable worm behavior and segments
 - Dynamic segment creation
