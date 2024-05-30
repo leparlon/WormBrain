@@ -1,12 +1,12 @@
 # Worm Brain Plugin
-
 A custom node for creating AI-powered worms in Godot Engine.
 `brain.gd` and `weights.gd` use real mapping taken from a *C. elegans* worm brain (it has only 302 neurons), enabling you to simulate it in your game.
 Heavily based on this project: [Simulate the C. elegans worm brain on your browser](https://github.com/heyseth/worm-sim).
 
 Drag `WormNode` to your scene and enjoy.  
-**Note:** Does not handle collision well, so you need to limit where it can go using an editor property.
-
+**Note:** Does not handle collision well, so you need to limit where it can go using an editor property.   
+  
+See also: [FlyBrain](https://github.com/leparlon/flybrain)
 ## Features
 - Customizable worm behavior and segments
 - Dynamic segment creation
