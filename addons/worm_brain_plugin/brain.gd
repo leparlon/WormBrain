@@ -30,10 +30,14 @@ var debug = false  # Ativar debug
 
 # --- Muscle-driven locomotion outputs ---
 var segment_count: int = 20       # set from WormNode before setup()
-var segment_curvature: Array = [] # per-segment D-V curvature (future: proprioception)
+var segment_curvature: Array = [] # per-segment D-V curvature (EMA smoothed)
 var net_turn: float = 0.0         # total dorsal - ventral bias → steering signal
 var net_speed: float = 0.0        # total dorsal + ventral activity → speed signal
 var motor_smoothing: float = 0.3  # EMA smoothing on per-segment curvature
+
+# --- Proprioceptive feedback (Wen et al. 2012) ---
+var body_curvature: Array = []    # actual segment angles set by WormNode each frame
+var prop_gain: float = 0.3        # proprioceptive coupling strength (0 = disabled)
 
 func _init():
 	var weights_module = preload("res://addons/worm_brain_plugin/weights.gd")
@@ -146,7 +150,32 @@ func rand_excite():
 			if debug:
 				print("Exciting random key: ", random_key)
 
+func _inject_proprioception() -> void:
+	if prop_gain <= 0.0 or body_curvature.size() < 2:
+		return
+	# DB (7 neurons, forward/dorsal) and VB (11 neurons, forward/ventral) receive
+	# a signal proportional to the change in body curvature at their body position.
+	# proprio[i] = curvature[i-1] - curvature[i]  (Wen et al. 2012)
+	# Positive proprio at a segment = entering a dorsal bend → excite B-type neurons
+	# → wave propagates anterior to posterior.
+	var db_neurons: Array = ["DB1", "DB2", "DB3", "DB4", "DB5", "DB6", "DB7"]
+	var vb_neurons: Array = ["VB1", "VB2", "VB3", "VB4", "VB5", "VB6", "VB7", "VB8", "VB9", "VB10", "VB11"]
+	var n: int = body_curvature.size()
+
+	for j in range(db_neurons.size()):
+		var t: float = float(j) / float(db_neurons.size() - 1) * float(n - 1)
+		var seg_i: int = clamp(int(round(t)), 1, n - 1)
+		var proprio: float = body_curvature[seg_i - 1] - body_curvature[seg_i]
+		postSynaptic[db_neurons[j]][nextState] += prop_gain * proprio
+
+	for j in range(vb_neurons.size()):
+		var t: float = float(j) / float(vb_neurons.size() - 1) * float(n - 1)
+		var seg_i: int = clamp(int(round(t)), 1, n - 1)
+		var proprio: float = body_curvature[seg_i - 1] - body_curvature[seg_i]
+		postSynaptic[vb_neurons[j]][nextState] += prop_gain * proprio
+
 func update():
+	_inject_proprioception()
 	if stimulateHungerNeurons:
 		dendrite_accumulate("RIML")
 		dendrite_accumulate("RIMR")

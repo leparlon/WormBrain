@@ -21,7 +21,8 @@ var BRAIN = Brain.new()
 @export var body_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
 @export var tail_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
 
-@export var bend_gain: float = 0.05 # Radians of body bend per unit of normalised muscle curvature
+@export var bend_gain: float = 0.05    # Reserved: per-segment curvature gain (future use)
+@export var prop_gain: float = 0.3     # Proprioceptive coupling into B-type neurons (0 = off)
 
 @export var max_scale = 1.0 # The maximum scale of the worm's girth
 @export var min_scale = 0.3 # The minimum scale of the worm's girth
@@ -130,6 +131,7 @@ func _ready():
 	sense_area_right.connect("area_exited", Callable(self, "_on_sense_area_exited_right"))
 
 	BRAIN.segment_count = segment_count
+	BRAIN.prop_gain = prop_gain
 	BRAIN.setup()
 	BRAIN.rand_excite()
 
@@ -150,10 +152,13 @@ func _process(delta):
 		wormBrainLastUpdate -= delta
 	else:
 		wormBrainLastUpdate = wormBrainDelay
-		BRAIN.update()	
+		BRAIN.update()
 		update_brain()
 		update_simulation(delta)
 		move_segments()
+		# Feed actual body curvature back into the brain for the next tick.
+		# Delay of one cycle is biologically correct (proprioception is not instant).
+		BRAIN.body_curvature = _compute_body_curvature()
 
 func update_brain():
 	var scaling = time_scaling_factor
@@ -215,6 +220,16 @@ func move_segments():
 			target_position - direction * segment_distance, 0.5)
 		if direction != Vector2.ZERO:
 			segments[i].rotation = atan2(direction.y, direction.x)
+
+func _compute_body_curvature() -> Array:
+	# Angular difference between consecutive segments = local body curvature.
+	# Wrapped to [-PI, PI] so values stay signed and bounded regardless of rotation.
+	var curv: Array = []
+	curv.resize(segment_count)
+	curv[0] = 0.0
+	for i in range(1, segment_count):
+		curv[i] = wrapf(segments[i].rotation - segments[i - 1].rotation, -PI, PI)
+	return curv
 
 func _on_head_area_entered_right(area):
 	headAreaEntered(area, false)
