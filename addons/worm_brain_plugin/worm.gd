@@ -183,7 +183,7 @@ func update_simulation(delta):
 	speed += speedChangeInterval
 	facingDir = lerp_angle(facingDir, targetDir, 0.1)
 
-	var movement = Vector2(cos(facingDir), sin(facingDir)) * speed * delta
+	var movement = Vector2(cos(facingDir), sin(facingDir)) * speed * BRAIN.locomotion_sign * delta
 	target += movement
 
 	# Keep worm inside limiting area

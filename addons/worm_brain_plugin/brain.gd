@@ -39,6 +39,12 @@ var motor_smoothing: float = 0.3  # EMA smoothing on per-segment curvature
 var body_curvature: Array = []    # actual segment angles set by WormNode each frame
 var prop_gain: float = 0.3        # proprioceptive coupling strength (0 = disabled)
 
+# --- Locomotion direction ---
+# AVB + PVC = forward command interneurons; AVA + AVD + AVE = backward command interneurons.
+# locomotion_sign = +1 (forward) or -1 (reversal). Hysteresis: requires >5 unit difference
+# to flip, so transient noise doesn't cause jitter.
+var locomotion_sign: int = 1
+
 func _init():
 	var weights_module = preload("res://addons/worm_brain_plugin/weights.gd")
 	weights = weights_module.get_weights()
@@ -296,8 +302,23 @@ func motor_control():
 		var v: float = lerp(raw_ventral[lo], raw_ventral[hi], frac)
 		segment_curvature[i] = lerp(segment_curvature[i], d - v, motor_smoothing)
 
+	# Locomotion direction from command interneurons (read thisState = prev-cycle potential).
+	# AVB + PVC drive forward (B-type motor neurons); AVA + AVD + AVE drive backward (A-type).
+	var fwd_bias: float = (postSynaptic["AVBL"][thisState] + postSynaptic["AVBR"][thisState] +
+						   postSynaptic["PVCL"][thisState] + postSynaptic["PVCR"][thisState])
+	var bwd_bias: float = (postSynaptic["AVAL"][thisState] + postSynaptic["AVAR"][thisState] +
+						   postSynaptic["AVDL"][thisState] + postSynaptic["AVDR"][thisState] +
+						   postSynaptic["AVEL"][thisState] + postSynaptic["AVER"][thisState])
+	var dir_diff: float = fwd_bias - bwd_bias
+	if dir_diff > 5.0:
+		locomotion_sign = 1
+	elif dir_diff < -5.0:
+		locomotion_sign = -1
+	# else: keep current sign (hysteresis — prevents jitter on balanced states)
+
 	if debug:
-		print("net_turn: ", net_turn, " net_speed: ", net_speed)
+		print("net_turn: ", net_turn, " net_speed: ", net_speed, " locomotion_sign: ", locomotion_sign)
+		print("fwd_bias: ", fwd_bias, " bwd_bias: ", bwd_bias)
 		print("curvature[0..4]: ", segment_curvature.slice(0, 5))
 
 func begins_with_any(string, prefixes):
