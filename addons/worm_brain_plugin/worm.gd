@@ -21,6 +21,8 @@ var BRAIN = Brain.new()
 @export var body_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
 @export var tail_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
 
+@export var bend_gain: float = 0.05 # Radians of body bend per unit of normalised muscle curvature
+
 @export var max_scale = 1.0 # The maximum scale of the worm's girth
 @export var min_scale = 0.3 # The minimum scale of the worm's girth
 @export var front_rate = 0.2 # Rate of girth increase at the front
@@ -127,6 +129,7 @@ func _ready():
 	sense_area_right.connect("area_entered", Callable(self, "_on_sense_area_entered_right"))
 	sense_area_right.connect("area_exited", Callable(self, "_on_sense_area_exited_right"))
 
+	BRAIN.segment_count = segment_count
 	BRAIN.setup()
 	BRAIN.rand_excite()
 
@@ -153,16 +156,17 @@ func _process(delta):
 		move_segments()
 
 func update_brain():
-	var scaling_factor = time_scaling_factor  # Aumentar o fator de escala
-	var new_dir = (BRAIN.accumleft - BRAIN.accumright) / scaling_factor
-	targetDir = facingDir + new_dir * PI
-	targetSpeed = (abs(BRAIN.accumleft) + abs(BRAIN.accumright)) / (scaling_factor * 2)  # Ajustar a fórmula de velocidade
-	speedChangeInterval = (targetSpeed - speed) / (scaling_factor * 1.5)
-	
+	var scaling = time_scaling_factor
+	# net_turn: dorsal - ventral (normalised). Maps to a target direction offset like the
+	# original left-right model, but now anatomically correct: D/V drives planar turning.
+	targetDir = facingDir + (BRAIN.net_turn / scaling) * PI
+	# net_speed: raw total muscle activation, same scale as old accumleft + accumright.
+	targetSpeed = BRAIN.net_speed / (scaling * 2.0)
+	speedChangeInterval = (targetSpeed - speed) / (scaling * 1.5)
+
 	if debug:
-		print("Accumleft: ", BRAIN.accumleft, " Accumright: ", BRAIN.accumright)
-		print("New Direction: ", new_dir, " Target Direction: ", targetDir)
-		print("Target Speed: ", targetSpeed, " Speed Change Interval: ", speedChangeInterval)
+		print("net_turn: ", BRAIN.net_turn, " net_speed: ", BRAIN.net_speed)
+		print("targetDir: ", targetDir, " targetSpeed: ", targetSpeed)
 
 func update_simulation(delta):
 	if hungry_worm:
@@ -170,50 +174,47 @@ func update_simulation(delta):
 			time_since_eaten -= delta
 			if time_since_eaten <= 0:
 				hungry(true)
-	
+
 	speed += speedChangeInterval
 	facingDir = lerp_angle(facingDir, targetDir, 0.1)
+
 	var movement = Vector2(cos(facingDir), sin(facingDir)) * speed * delta
 	target += movement
-	segments[0].rotation = facingDir
-	
-	# Manter a minhoca dentro da área limite
+
+	# Keep worm inside limiting area
 	var converted_target = segments[0].global_position
 	var diff = converted_target - segments[0].position
 	var converted_area = limitingArea
 	converted_area.position -= diff
-	var worm_is_coliding = false
 
 	if target.x < converted_area.position.x:
 		target.x = converted_area.position.x
-		worm_is_coliding = true
 	elif target.x > converted_area.position.x + converted_area.size.x:
 		target.x = converted_area.position.x + converted_area.size.x
-		worm_is_coliding = true
-	
+
 	if target.y < converted_area.position.y:
 		target.y = converted_area.position.y
-		worm_is_coliding = true
 	elif target.y > converted_area.position.y + converted_area.size.y:
 		target.y = converted_area.position.y + converted_area.size.y
-		worm_is_coliding = true
-		
-	#coliding(worm_is_coliding, null, true)
-	#coliding(worm_is_coliding, null, false)
+
 	if debug:
 		print("Facing Direction: ", facingDir, " Speed: ", speed)
 		print("Movement: ", movement, " Target Position: ", target)
 
 func move_segments():
 	segments[0].position = target
+	segments[0].rotation = facingDir
 
+	# Kinematic chain: each segment follows the previous with a fixed distance.
+	# The temporal lag of the lerp naturally creates the sinusoidal body wave —
+	# the head oscillates (driven by D/V neural dynamics) and the wave propagates back.
 	for i in range(1, segment_count):
 		var target_position = segments[i - 1].position
 		var direction = (target_position - segments[i].position).normalized()
-		segments[i].position = segments[i].position.lerp(target_position - direction * segment_distance, 0.5)
-		
-		if debug:
-			print("Segment ", i, " Position: ", segments[i].position)
+		segments[i].position = segments[i].position.lerp(
+			target_position - direction * segment_distance, 0.5)
+		if direction != Vector2.ZERO:
+			segments[i].rotation = atan2(direction.y, direction.x)
 
 func _on_head_area_entered_right(area):
 	headAreaEntered(area, false)

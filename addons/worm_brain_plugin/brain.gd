@@ -28,6 +28,13 @@ var mLeft = []
 var mRight = []
 var debug = false  # Ativar debug
 
+# --- Muscle-driven locomotion outputs ---
+var segment_count: int = 20       # set from WormNode before setup()
+var segment_curvature: Array = [] # per-segment D-V curvature (future: proprioception)
+var net_turn: float = 0.0         # total dorsal - ventral bias → steering signal
+var net_speed: float = 0.0        # total dorsal + ventral activity → speed signal
+var motor_smoothing: float = 0.3  # EMA smoothing on per-segment curvature
+
 func _init():
 	var weights_module = preload("res://addons/worm_brain_plugin/weights.gd")
 	weights = weights_module.get_weights()
@@ -114,6 +121,9 @@ func setup():
 		"MVR20", "MVL21", "MVR22", "MVR23"
 	]
 	print ("mRight: "+ str(mRight.size()))
+
+	segment_curvature.resize(segment_count)
+	segment_curvature.fill(0.0)
 
 func dendrite_accumulate(preSynaptic):
 	if preSynaptic in weights:
@@ -219,19 +229,47 @@ func fire_neuron(fneuron):
 			print("Neuron ", fneuron, " fired and reset")
 
 func motor_control():
-	accumleft = 0
-	accumright = 0
+	# Read body-wall locomotion muscle cells 07..23 (01..06 = pharynx, skip)
+	# MDL/MDR = dorsal body-wall muscles, MVL/MVR = ventral body-wall muscles
+	# Average anatomical L+R since we simulate in 2D (only D/V matters for planar motion)
+	var raw_dorsal: Array = []
+	var raw_ventral: Array = []
+	var total_d: float = 0.0
+	var total_v: float = 0.0
 
-	for muscleName in muscleList:
-		if muscleName in mLeft:
-			accumleft += postSynaptic[muscleName][nextState]
-			postSynaptic[muscleName][nextState] = 0
-		elif muscleName in mRight:
-			accumright += postSynaptic[muscleName][nextState]
-			postSynaptic[muscleName][nextState] = 0
+	for j in range(7, 24):  # 07..23 inclusive = 17 muscle pairs
+		var num: String = "%02d" % j
+		var d: float = (postSynaptic["MDL" + num][nextState] + postSynaptic["MDR" + num][nextState]) * 0.5
+		var v: float = (postSynaptic["MVL" + num][nextState] + postSynaptic["MVR" + num][nextState]) * 0.5
+		total_d += d
+		total_v += v
+		raw_dorsal.append(d / fireThreshold)  # normalised ~[0,1] for per-segment curvature
+		raw_ventral.append(v / fireThreshold)
+
+	# net_turn: dorsal - ventral total (normalised). Positive = dorsal dominates → turn one way.
+	# net_speed: total muscle activity in raw units — same scale as old accumleft+accumright.
+	net_turn = (total_d - total_v) / fireThreshold
+	net_speed = total_d + total_v
+
+	# Reset ALL muscle-cell accumulators to prevent unbounded growth each cycle
+	for key in postSynaptic:
+		if begins_with_any(key, ["MDL", "MDR", "MVL", "MVR", "MVU"]):
+			postSynaptic[key][nextState] = 0
+
+	# Per-segment curvature with EMA smoothing (kept for future proprioception work)
+	var n: int = raw_dorsal.size()  # 17
+	for i in range(segment_count):
+		var t: float = float(i) / float(max(segment_count - 1, 1)) * float(n - 1)
+		var lo: int = int(t)
+		var hi: int = min(lo + 1, n - 1)
+		var frac: float = t - lo
+		var d: float = lerp(raw_dorsal[lo], raw_dorsal[hi], frac)
+		var v: float = lerp(raw_ventral[lo], raw_ventral[hi], frac)
+		segment_curvature[i] = lerp(segment_curvature[i], d - v, motor_smoothing)
 
 	if debug:
-		print("Accumleft: ", accumleft, " Accumright: ", accumright)
+		print("net_turn: ", net_turn, " net_speed: ", net_speed)
+		print("curvature[0..4]: ", segment_curvature.slice(0, 5))
 
 func begins_with_any(string, prefixes):
 	for prefix in prefixes:

@@ -13,3 +13,6 @@ export_presets.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# AI agent/assistant files (not part of the plugin)
+agents/
