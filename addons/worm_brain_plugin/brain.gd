@@ -263,44 +263,58 @@ func fire_neuron(fneuron):
 		if debug:
 			print("Neuron ", fneuron, " fired and reset")
 
+func _read_class_interp(prefix: String, count: int) -> Array:
+	# Read thisState for each neuron in a motor class and interpolate to segment_count values.
+	# thisState = potential accumulated in the PREVIOUS cycle — a reliable activity proxy.
+	var raw: Array = []
+	for j in range(1, count + 1):
+		var key: String = prefix + str(j)
+		raw.append(postSynaptic[key][thisState] if key in postSynaptic else 0.0)
+	var result: Array = []
+	result.resize(segment_count)
+	for i in range(segment_count):
+		var t: float = float(i) / float(max(segment_count - 1, 1)) * float(count - 1)
+		var lo: int = int(t)
+		var hi: int = min(lo + 1, count - 1)
+		result[i] = lerp(raw[lo], raw[hi], t - lo)
+	return result
+
 func motor_control():
-	# Read body-wall locomotion muscle cells 07..23 (01..06 = pharynx, skip)
-	# MDL/MDR = dorsal body-wall muscles, MVL/MVR = ventral body-wall muscles
-	# Average anatomical L+R since we simulate in 2D (only D/V matters for planar motion)
-	var raw_dorsal: Array = []
-	var raw_ventral: Array = []
+	# --- Exact motor neuron class mapping ---
+	# Formula (reference doc, Wen et al. 2012):
+	#   D[i] = +DA[i] + DB[i] + AS[i] - DD[i]   (ACh = excitatory, GABA = inhibitory)
+	#   V[i] = +VA[i] + VB[i] + VC[i] - VD[i]
+	#   curvature[i] = D[i] - V[i]
+	#
+	# Each class has a known neuron count that maps to anatomical body position:
+	#   DA(9), DB(7), AS(11), DD(6) — dorsal
+	#   VA(12), VB(11), VC(6), VD(13) — ventral
+	# Neuron 1 = anterior, last = posterior → linear interpolation to segment_count.
+	var da: Array = _read_class_interp("DA", 9)
+	var db: Array = _read_class_interp("DB", 7)
+	var as_: Array = _read_class_interp("AS", 11)
+	var dd: Array = _read_class_interp("DD", 6)
+	var va: Array = _read_class_interp("VA", 12)
+	var vb: Array = _read_class_interp("VB", 11)
+	var vc: Array = _read_class_interp("VC", 6)
+	var vd: Array = _read_class_interp("VD", 13)
+
 	var total_d: float = 0.0
 	var total_v: float = 0.0
-
-	for j in range(7, 24):  # 07..23 inclusive = 17 muscle pairs
-		var num: String = "%02d" % j
-		var d: float = (postSynaptic["MDL" + num][nextState] + postSynaptic["MDR" + num][nextState]) * 0.5
-		var v: float = (postSynaptic["MVL" + num][nextState] + postSynaptic["MVR" + num][nextState]) * 0.5
+	for i in range(segment_count):
+		var d: float = da[i] + db[i] + as_[i] - dd[i]
+		var v: float = va[i] + vb[i] + vc[i] - vd[i]
 		total_d += d
 		total_v += v
-		raw_dorsal.append(d / fireThreshold)  # normalised ~[0,1] for per-segment curvature
-		raw_ventral.append(v / fireThreshold)
+		segment_curvature[i] = lerp(segment_curvature[i], (d - v) / fireThreshold, motor_smoothing)
 
-	# net_turn: dorsal - ventral total (normalised). Positive = dorsal dominates → turn one way.
-	# net_speed: total muscle activity in raw units — same scale as old accumleft+accumright.
-	net_turn = (total_d - total_v) / fireThreshold
-	net_speed = total_d + total_v
+	net_turn  = (total_d - total_v) / fireThreshold  # normalised steering signal
+	net_speed = total_d + total_v                     # raw total — comparable scale to old model
 
-	# Reset ALL muscle-cell accumulators to prevent unbounded growth each cycle
+	# Muscle cells still accumulate from connectome firings; reset to prevent unbounded growth.
 	for key in postSynaptic:
 		if begins_with_any(key, ["MDL", "MDR", "MVL", "MVR", "MVU"]):
 			postSynaptic[key][nextState] = 0
-
-	# Per-segment curvature with EMA smoothing (kept for future proprioception work)
-	var n: int = raw_dorsal.size()  # 17
-	for i in range(segment_count):
-		var t: float = float(i) / float(max(segment_count - 1, 1)) * float(n - 1)
-		var lo: int = int(t)
-		var hi: int = min(lo + 1, n - 1)
-		var frac: float = t - lo
-		var d: float = lerp(raw_dorsal[lo], raw_dorsal[hi], frac)
-		var v: float = lerp(raw_ventral[lo], raw_ventral[hi], frac)
-		segment_curvature[i] = lerp(segment_curvature[i], d - v, motor_smoothing)
 
 	# Locomotion direction from command interneurons (read thisState = prev-cycle potential).
 	# AVB + PVC drive forward (B-type motor neurons); AVA + AVD + AVE drive backward (A-type).
