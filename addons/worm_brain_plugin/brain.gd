@@ -276,7 +276,7 @@ func _read_class_interp(prefix: String, count: int) -> Array:
 		var t: float = float(i) / float(max(segment_count - 1, 1)) * float(count - 1)
 		var lo: int = int(t)
 		var hi: int = min(lo + 1, count - 1)
-		result[i] = lerp(raw[lo], raw[hi], t - lo)
+		result[i] = lerp(float(raw[lo]), float(raw[hi]), t - lo)
 	return result
 
 func motor_control():
