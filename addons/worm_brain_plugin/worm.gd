@@ -24,6 +24,12 @@ var BRAIN = Brain.new()
 @export var bend_gain: float = 0.05    # Reserved: per-segment curvature gain (future use)
 @export var prop_gain: float = 0.3     # Proprioceptive coupling into B-type neurons (0 = off)
 
+@export_group("Sensors")
+@export var touch_radius: float = 20.0   # Radius of the nose-touch collision areas
+@export var touch_offset: float = 10.0   # Lateral offset of touch sensors from head centre
+@export var smell_radius: float = 130.0  # Radius of the food-smell detection areas
+@export var smell_offset: float = 50.0   # Lateral offset of smell sensors from head centre
+
 @export var max_scale = 1.0 # The maximum scale of the worm's girth
 @export var min_scale = 0.3 # The minimum scale of the worm's girth
 @export var front_rate = 0.2 # Rate of girth increase at the front
@@ -87,37 +93,37 @@ func _ready():
 	var head_area_left = Area2D.new()
 	var collision_shape_left = CollisionShape2D.new()
 	collision_shape_left.shape = CircleShape2D.new()
-	collision_shape_left.shape.radius = 20
+	collision_shape_left.shape.radius = touch_radius
 	head_area_left.add_child(collision_shape_left)
 	segments[0].add_child(head_area_left)
-	head_area_left.position.y -= 10
+	head_area_left.position.y -= touch_offset
 	head_area_left.add_to_group("sensor")
-	
+
 	var head_area_right = Area2D.new()
 	var collision_shape_right = CollisionShape2D.new()
 	collision_shape_right.shape = CircleShape2D.new()
-	collision_shape_right.shape.radius = 20
+	collision_shape_right.shape.radius = touch_radius
 	head_area_right.add_child(collision_shape_right)
 	segments[0].add_child(head_area_right)
-	head_area_right.position.y += 10
+	head_area_right.position.y += touch_offset
 	head_area_right.add_to_group("sensor")
 
 	var sense_area_left = Area2D.new()
 	var collision_sense_shape_left = CollisionShape2D.new()
 	collision_sense_shape_left.shape = CircleShape2D.new()
-	collision_sense_shape_left.shape.radius = 130
+	collision_sense_shape_left.shape.radius = smell_radius
 	sense_area_left.add_child(collision_sense_shape_left)
 	segments[0].add_child(sense_area_left)
-	sense_area_left.position.y -= 50
+	sense_area_left.position.y -= smell_offset
 	sense_area_left.add_to_group("sensor")
-	
+
 	var sense_area_right = Area2D.new()
 	var collision_sense_shape_right = CollisionShape2D.new()
 	collision_sense_shape_right.shape = CircleShape2D.new()
-	collision_sense_shape_right.shape.radius = 130
+	collision_sense_shape_right.shape.radius = smell_radius
 	sense_area_right.add_child(collision_sense_shape_right)
 	segments[0].add_child(sense_area_right)
-	sense_area_right.position.y += 50
+	sense_area_right.position.y += smell_offset
 	sense_area_right.add_to_group("sensor")
 
 	head_area_left.connect("area_entered", Callable(self, "_on_head_area_entered_left"))
