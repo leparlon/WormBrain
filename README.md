@@ -28,7 +28,7 @@ WormBrain is not a research tool. It does not claim to accurately reproduce the 
 
 The foundation of this project is [worm-sim](https://github.com/heyseth/worm-sim) by Seth Miller — a browser-based *C. elegans* simulation. WormBrain started as a GDScript port of that work and has since grown into a full Godot plugin with body physics, proprioceptive feedback, and customizable sensors.
 
-More recently, work on simulating the *Drosophila* (fruit fly) connectome — a much larger and more complex network — reminded me of how much more could be done here. That renewed interest led to the v2.0 overhaul: better motor neuron class mapping, per-segment curvature, and body-wave propagation via proprioceptive feedback. You can find that experiment at [FlyBrain](https://github.com/leparlon/flybrain).
+More recently, I tried the same approach with the *Drosophila* (fruit fly) connectome — a much larger and more complex network. That experiment lives at [FlyBrain](https://github.com/leparlon/flybrain), and so far it has not really worked: the network is orders of magnitude bigger, much slower to simulate, and I haven't managed to get meaningful behavior out of it yet. Still, working on it fed ideas back into this project and led to the v2.0 overhaul: better motor neuron class mapping, per-segment curvature, and body-wave propagation via proprioceptive feedback.
 
 ---
 
