@@ -1,22 +1,40 @@
-# Worm Brain Plugin
+# WormBrain
 
-A custom node for creating AI-powered worms in Godot 4.
-`brain.gd` and `weights.gd` use the real neural connectome of *C. elegans* — a nematode worm with exactly 302 neurons — enabling biologically grounded locomotion in your game.
+*C. elegans* is a tiny nematode worm. It has exactly 302 neurons. Its entire neural wiring has been mapped and published. WormBrain puts that wiring into a Godot plugin, gives it a body, and lets it run.
 
-Heavily based on: [Simulate the C. elegans worm brain on your browser](https://github.com/heyseth/worm-sim) by Seth Miller.
-
-See also: [FlyBrain](https://github.com/leparlon/flybrain)
+Give it food. Give it walls. Watch what happens.
 
 ---
 
-## Features
+## What is this?
 
-- Full C. elegans connectome simulation (302 neurons, ~4000 synaptic connections)
-- Biologically correct motor output: dorsal/ventral muscle classes with ACh/GABA signs
-- Proprioceptive body-wave feedback (Wen et al. 2012)
-- Forward and backward locomotion driven by command interneurons (AVB/PVC vs AVA/AVD/AVE)
-- Customisable body shape, textures, and sensor geometry
-- Signal-based food and touch detection
+WormBrain is a plugin for [Godot](https://godotengine.org) — a free, open-source game engine popular with indie developers — that adds a `WormNode` to your 2D scene. The worm's behavior is driven by a simulation of the *C. elegans* connectome: all 302 neurons and roughly 4,000 synaptic connections, ticking in real time.
+
+Each frame, neural activity propagates through the connectome. Motor neuron classes produce dorsal and ventral activations. The difference between them becomes a curvature signal. Curvature drives the kinematic chain that is the worm's body. The result is something that moves a bit like a worm — seeking food, avoiding obstacles, reversing when it bumps into things — not because it was scripted to, but because the network says so.
+
+This project is closer to a toy than a scientific model, and that is part of the point.
+
+---
+
+## Why does it exist?
+
+Curiosity, mostly. I wanted to know what it felt like to drop a piece of biology into a game engine and let it run. The *C. elegans* connectome is public, small enough to simulate in real time, and just strange enough to be interesting.
+
+WormBrain is not a research tool. It does not claim to accurately reproduce the worm's biology. The mapping from neuron activity to pixel movement involves simplifications that any neuroscientist would reasonably object to. But as an interactive playground — a way to see connectome-driven behavior in action, in a game context — it does something that feels genuinely fun, and a little bit alive.
+
+---
+
+## Inspiration
+
+The foundation of this project is [worm-sim](https://github.com/heyseth/worm-sim) by Seth Miller — a browser-based *C. elegans* simulation. WormBrain started as a GDScript port of that work and has since grown into a full Godot plugin with body physics, proprioceptive feedback, and customizable sensors.
+
+More recently, work on simulating the *Drosophila* (fruit fly) connectome — a much larger and more complex network — reminded me of how much more could be done here. That renewed interest led to the v2.0 overhaul: better motor neuron class mapping, per-segment curvature, and body-wave propagation via proprioceptive feedback. You can find that experiment at [FlyBrain](https://github.com/leparlon/flybrain).
+
+---
+
+## Demo / Example
+
+**[My Pet Elegans](https://play.google.com/store/apps/details?id=com.pgcn.petworm)** is a small Android game built with this plugin. You feed your worm, watch it roam, and see the connectome at work in a real (if very simple) game context. It's more proof-of-concept than polished product, but it shows what the plugin can actually do in practice.
 
 ---
 
@@ -94,21 +112,20 @@ nose_touching_neurons_stimulated(stimulated: bool, left: bool)
 
 ## Interacting with the Brain
 
-`worm.gd` bridges the neural simulation and the game world.
-`brain.gd` runs the connectome using weights from `weights.gd`.
+`worm.gd` bridges the neural simulation and the game world. `brain.gd` runs the connectome using weights from `weights.gd`.
 
 You can continuously stimulate any sensory pathway by setting flags on `BRAIN`:
 
 ```gdscript
-$WormNode.BRAIN.stimulateHungerNeurons          = true
-$WormNode.BRAIN.stimulateNoseTouchNeuronsLeft   = true
-$WormNode.BRAIN.stimulateNoseTouchNeuronsRight  = true
-$WormNode.BRAIN.stimulateFoodSenseNeuronsLeft   = true
-$WormNode.BRAIN.stimulateFoodSenseNeuronsRight  = true
-$WormNode.BRAIN.stimulatePheromonSenseNeuronsLeft   = true
-$WormNode.BRAIN.stimulatePheromonSenseNeuronsRight  = true
-$WormNode.BRAIN.stimulateChemicalsSenseNeuronsLeft  = true
-$WormNode.BRAIN.stimulateChemicalsSenseNeuronsRight = true
+$WormNode.BRAIN.stimulateHungerNeurons               = true
+$WormNode.BRAIN.stimulateNoseTouchNeuronsLeft        = true
+$WormNode.BRAIN.stimulateNoseTouchNeuronsRight       = true
+$WormNode.BRAIN.stimulateFoodSenseNeuronsLeft        = true
+$WormNode.BRAIN.stimulateFoodSenseNeuronsRight       = true
+$WormNode.BRAIN.stimulatePheromonSenseNeuronsLeft    = true
+$WormNode.BRAIN.stimulatePheromonSenseNeuronsRight   = true
+$WormNode.BRAIN.stimulateChemicalsSenseNeuronsLeft   = true
+$WormNode.BRAIN.stimulateChemicalsSenseNeuronsRight  = true
 $WormNode.BRAIN.stimulateTemperatureSenseNeuronsLeft  = true
 $WormNode.BRAIN.stimulateTemperatureSenseNeuronsRight = true
 $WormNode.BRAIN.stimulateOdorRepelantSenseNeuronsLeft  = true
@@ -118,9 +135,9 @@ $WormNode.BRAIN.stimulateOdorRepelantSenseNeuronsRight = true
 Reading neural state:
 
 ```gdscript
-$WormNode.BRAIN.net_turn        # float: dorsal-ventral steering bias
-$WormNode.BRAIN.net_speed       # float: total motor activity (speed proxy)
-$WormNode.BRAIN.locomotion_sign # int: +1 forward, -1 backward
+$WormNode.BRAIN.net_turn           # float: dorsal-ventral steering bias
+$WormNode.BRAIN.net_speed          # float: total motor activity (speed proxy)
+$WormNode.BRAIN.locomotion_sign    # int: +1 forward, -1 backward
 $WormNode.BRAIN.segment_curvature  # Array[float]: per-segment D-V curvature
 ```
 
@@ -132,9 +149,9 @@ $WormNode.segment_global_positions() # Array[Vector2]
 
 ---
 
-## How the Movement Works (v2.0)
+## How Movement Works (v2.0)
 
-The motor output is computed from the C. elegans motor neuron classes each neural tick:
+Motor output is computed from the C. elegans motor neuron classes each neural tick:
 
 ```
 D[i] = DA[i] + DB[i] + AS[i] − DD[i]   # dorsal activation at segment i
@@ -145,13 +162,13 @@ curvature[i] = D[i] − V[i]
 - **Steering** (`net_turn`): total D − V bias → head turns toward the dominant side
 - **Speed** (`net_speed`): total D + V activity
 - **Direction**: AVB + PVC interneurons drive forward; AVA + AVD + AVE drive reversal
-- **Body wave**: each segment follows the previous (kinematic chain); proprioceptive feedback (prop_gain) injects body curvature back into DB/VB neurons, propagating the wave head → tail
+- **Body wave**: each segment follows the previous (kinematic chain); proprioceptive feedback (`prop_gain`) injects body curvature back into DB/VB neurons, propagating the wave head → tail
 
 ---
 
 ## License
 
-MIT License — see `LICENSE`.
+MIT — see `LICENSE`.
 
 ## Acknowledgements
 
