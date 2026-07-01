@@ -8,6 +8,19 @@ signal hunger_neurons_stimulated(stimulated)
 signal nose_touching_neurons_stimulated(stimulated, left)
 var BRAIN = Brain.new()
 
+# --- Movement / sensor modes (selectable in the Inspector) ---
+enum MotorMode {
+	LUDIC_CPG,             # guaranteed sinusoidal gait, modulated by the connectome
+	BIOLOGICAL_CONNECTOME, # body shape driven directly by per-segment neural curvature
+}
+enum SensorMode {
+	EMERGENT,   # sensory response arises purely from the connectome
+	KLINOTAXIS, # add an explicit bias so the worm steers toward sensed food
+}
+
+@export var motor_mode: MotorMode = MotorMode.LUDIC_CPG
+@export var sensor_mode: SensorMode = SensorMode.KLINOTAXIS
+
 @export var limitingArea = Rect2(50, 50, 1000, 1000)
 @export var segment_count = 20
 @export var segment_distance = 10
@@ -21,14 +34,28 @@ var BRAIN = Brain.new()
 @export var body_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
 @export var tail_texture : Texture2D = preload("res://addons/worm_brain_plugin/segment.png")
 
-@export var bend_gain: float = 0.05    # Reserved: per-segment curvature gain (future use)
-@export var prop_gain: float = 0.3     # Proprioceptive coupling into B-type neurons (0 = off)
+@export_group("Gait")
+@export var body_stiffness: float = 0.5   # How fast segments settle to their target shape (0-1)
+@export var max_bend: float = 0.6         # Clamp on per-segment bend angle (rad) — stops folding
+
+@export_subgroup("Ludic (CPG)")
+@export var cpg_amplitude: float = 0.28   # Bend angle per segment at full speed (rad)
+@export var cpg_wavelength: float = 8.0   # Body segments per full undulation wave
+@export var cpg_frequency: float = 7.0    # Temporal speed of the travelling wave
+@export var cpg_speed_ref: float = 2.0    # Speed at which the wave reaches full amplitude
+@export var cpg_idle: float = 0.18        # Minimum wiggle when nearly stopped (keeps it alive)
+
+@export_subgroup("Biological (connectome)")
+@export var bend_gain: float = 0.12       # Neural curvature -> body bend (biological mode only)
+
+@export var prop_gain: float = 0.3        # Proprioceptive coupling into B-type neurons (0 = off)
 
 @export_group("Sensors")
-@export var touch_radius: float = 20.0   # Radius of the nose-touch collision areas
-@export var touch_offset: float = 10.0   # Lateral offset of touch sensors from head centre
-@export var smell_radius: float = 130.0  # Radius of the food-smell detection areas
-@export var smell_offset: float = 50.0   # Lateral offset of smell sensors from head centre
+@export var touch_radius: float = 20.0    # Radius of the nose-touch collision areas
+@export var touch_offset: float = 10.0    # Lateral offset of touch sensors from head centre
+@export var smell_radius: float = 130.0   # Radius of the food-smell detection areas
+@export var smell_offset: float = 50.0    # Lateral offset of smell sensors from head centre
+@export var klinotaxis_gain: float = 0.18 # Steering bias toward sensed food (KLINOTAXIS mode)
 
 @export var max_scale = 1.0 # The maximum scale of the worm's girth
 @export var min_scale = 0.3 # The minimum scale of the worm's girth
@@ -48,6 +75,7 @@ var head_area
 var sense_area
 var target = Vector2()
 var wormBrainLastUpdate = 0.0
+var cpg_phase = 0.0  # travelling-wave phase accumulator (LUDIC_CPG mode)
 
 # Function to calculate the scale based on segment index with different rates for front and back
 func calculate_scale(segment_index, segment_count):
@@ -161,7 +189,7 @@ func _process(delta):
 		BRAIN.update()
 		update_brain()
 		update_simulation(delta)
-		move_segments()
+		_update_body(delta)
 		# Feed actual body curvature back into the brain for the next tick.
 		# Delay of one cycle is biologically correct (proprioception is not instant).
 		BRAIN.body_curvature = _compute_body_curvature()
@@ -171,6 +199,9 @@ func update_brain():
 	# net_turn: dorsal - ventral (normalised). Maps to a target direction offset like the
 	# original left-right model, but now anatomically correct: D/V drives planar turning.
 	targetDir = facingDir + (BRAIN.net_turn / scaling) * PI
+	# In KLINOTAXIS mode, add an explicit turn toward whichever side smells food.
+	if sensor_mode == SensorMode.KLINOTAXIS:
+		targetDir += _klinotaxis_bias()
 	# net_speed: raw total muscle activation, same scale as old accumleft + accumright.
 	targetSpeed = BRAIN.net_speed / (scaling * 2.0)
 	speedChangeInterval = (targetSpeed - speed) / (scaling * 1.5)
@@ -212,20 +243,58 @@ func update_simulation(delta):
 		print("Facing Direction: ", facingDir, " Speed: ", speed)
 		print("Movement: ", movement, " Target Position: ", target)
 
-func move_segments():
+func _update_body(delta):
+	# The head is driven by the connectome (heading + speed + direction). The rest of the
+	# body is reconstructed as an oriented chain: each segment trails the previous one at a
+	# fixed distance, bent by a per-segment curvature whose SOURCE depends on motor_mode.
 	segments[0].position = target
 	segments[0].rotation = facingDir
 
-	# Kinematic chain: each segment follows the previous with a fixed distance.
-	# The temporal lag of the lerp naturally creates the sinusoidal body wave —
-	# the head oscillates (driven by D/V neural dynamics) and the wave propagates back.
+	var curv := _segment_curvature_for_mode(delta)
+	var angle := facingDir
 	for i in range(1, segment_count):
-		var target_position = segments[i - 1].position
-		var direction = (target_position - segments[i].position).normalized()
-		segments[i].position = segments[i].position.lerp(
-			target_position - direction * segment_distance, 0.5)
+		angle += clampf(curv[i], -max_bend, max_bend)
+		var offset := Vector2(cos(angle), sin(angle)) * segment_distance
+		var target_position: Vector2 = segments[i - 1].position - offset
+		# Lerp toward the target shape so curvature changes look soft, not snappy.
+		segments[i].position = segments[i].position.lerp(target_position, body_stiffness)
+		var direction := segments[i - 1].position - segments[i].position
 		if direction != Vector2.ZERO:
-			segments[i].rotation = atan2(direction.y, direction.x)
+			segments[i].rotation = direction.angle()
+
+func _segment_curvature_for_mode(delta) -> Array:
+	var curv: Array = []
+	curv.resize(segment_count)
+	curv[0] = 0.0
+
+	if motor_mode == MotorMode.LUDIC_CPG:
+		# A travelling sine wave guarantees a lifelike undulation. The connectome still
+		# controls where the head points (net_turn), how fast it goes (speed) and which
+		# way the wave travels (locomotion_sign) — the CPG only shapes the gait itself.
+		var sf := clampf(abs(speed) / max(cpg_speed_ref, 0.001), 0.0, 1.0)
+		var amp := cpg_amplitude * maxf(sf, cpg_idle)
+		cpg_phase += cpg_frequency * delta * BRAIN.locomotion_sign
+		for i in range(1, segment_count):
+			curv[i] = amp * sin(cpg_phase - i * TAU / cpg_wavelength)
+	else:
+		# Body shape comes straight from the per-segment neural curvature the connectome
+		# produces. Honest to the biology, at the mercy of whatever the network is doing.
+		for i in range(1, segment_count):
+			var c: float = BRAIN.segment_curvature[i] if i < BRAIN.segment_curvature.size() else 0.0
+			curv[i] = c * bend_gain
+
+	return curv
+
+func _klinotaxis_bias() -> float:
+	# Nudge the heading toward whichever side smells food. The left smell sensor sits at
+	# local -y (port side); reaching it means turning counter-clockwise -> negative angle.
+	# Flip the signs if the worm ends up steering AWAY from food.
+	var bias := 0.0
+	if BRAIN.stimulateFoodSenseNeuronsLeft:
+		bias -= klinotaxis_gain
+	if BRAIN.stimulateFoodSenseNeuronsRight:
+		bias += klinotaxis_gain
+	return bias
 
 func _compute_body_curvature() -> Array:
 	# Angular difference between consecutive segments = local body curvature.
