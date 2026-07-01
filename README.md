@@ -24,6 +24,19 @@ WormBrain is not a research tool. It does not claim to accurately reproduce the 
 
 ---
 
+## The goal: as close to the biology as fun allows
+
+The guiding aim of WormBrain is to stay **as faithful to the real biology as it can while still being a lively, playable pet**. The connectome itself is real; the work is in mapping its output onto a body that both moves correctly *and* looks alive.
+
+Because those two goals sometimes pull in different directions, the plugin lets you choose per axis:
+
+- **Motor** — a `LUDIC_CPG` mode that guarantees a lifelike undulation (a central pattern generator, itself a real feature of *C. elegans* locomotion) with the connectome steering it, or a `BIOLOGICAL_CONNECTOME` mode where the body shape is driven **directly** by the per-segment neural curvature the network produces — honest to the biology, at the mercy of whatever the network is doing.
+- **Sensors** — a `KLINOTAXIS` mode that reliably steers the worm toward sensed food (the real behavior, made dependable), or an `EMERGENT` mode that forces nothing and lets the connectome respond on its own.
+
+Pick `LUDIC` + `KLINOTAXIS` for a convincing, food-seeking pet; pick `BIOLOGICAL` + `EMERGENT` to watch the raw connectome drive the body, warts and all.
+
+---
+
 ## Inspiration
 
 The foundation of this project is [worm-sim](https://github.com/heyseth/worm-sim) by Seth Miller — a browser-based *C. elegans* simulation. WormBrain started as a GDScript port of that work and has since grown into a full Godot plugin with body physics, proprioceptive feedback, and customizable sensors.
@@ -83,11 +96,24 @@ More recently, I tried the same approach with the *Drosophila* (fruit fly) conne
 | `time_scaling_factor` | `1.0` | Speed divisor — increase to slow the worm down |
 | `worm_brain_delay` | `0.0` | Seconds between neural ticks (0 = every frame) |
 
-### Movement (v2.0)
+### Modes
 | Parameter | Default | Description |
 |---|---|---|
-| `prop_gain` | `0.3` | Proprioceptive coupling strength into B-type neurons. Set to `0` to disable body-wave feedback |
-| `bend_gain` | `0.05` | Reserved for future per-segment curvature use |
+| `motor_mode` | `LUDIC_CPG` | How the body is shaped. `LUDIC_CPG`: guaranteed sinusoidal gait modulated by the connectome. `BIOLOGICAL_CONNECTOME`: body driven directly by per-segment neural curvature |
+| `sensor_mode` | `KLINOTAXIS` | How sensors act. `KLINOTAXIS`: steer toward sensed food. `EMERGENT`: pure connectome response, no forcing |
+
+### Gait
+| Parameter | Default | Description |
+|---|---|---|
+| `body_stiffness` | `0.5` | How fast segments settle to their target shape (0–1) |
+| `max_bend` | `0.6` | Clamp on per-segment bend angle (rad) — stops the body folding on itself |
+| `cpg_amplitude` | `0.28` | *(Ludic)* Bend angle per segment at full speed (rad) |
+| `cpg_wavelength` | `8.0` | *(Ludic)* Body segments per full undulation wave |
+| `cpg_frequency` | `7.0` | *(Ludic)* Temporal speed of the travelling wave |
+| `cpg_speed_ref` | `2.0` | *(Ludic)* Speed at which the wave reaches full amplitude |
+| `cpg_idle` | `0.18` | *(Ludic)* Minimum wiggle when nearly stopped (keeps it alive) |
+| `bend_gain` | `0.12` | *(Biological)* Neural curvature → body bend scale |
+| `prop_gain` | `0.3` | Proprioceptive coupling into B-type neurons. Set to `0` to disable body-wave feedback |
 
 ### Sensors
 | Parameter | Default | Description |
@@ -96,6 +122,7 @@ More recently, I tried the same approach with the *Drosophila* (fruit fly) conne
 | `touch_offset` | `10` | Lateral offset of touch sensors from head centre |
 | `smell_radius` | `130` | Radius of the food-smell detection areas |
 | `smell_offset` | `50` | Lateral offset of smell sensors from head centre |
+| `klinotaxis_gain` | `0.18` | Steering bias toward sensed food (`KLINOTAXIS` mode only) |
 
 ---
 
@@ -151,7 +178,7 @@ $WormNode.segment_global_positions() # Array[Vector2]
 
 ## How Movement Works (v2.0)
 
-Motor output is computed from the C. elegans motor neuron classes each neural tick:
+Every neural tick, motor output is computed from the *C. elegans* motor neuron classes:
 
 ```
 D[i] = DA[i] + DB[i] + AS[i] − DD[i]   # dorsal activation at segment i
@@ -159,10 +186,25 @@ V[i] = VA[i] + VB[i] + VC[i] − VD[i]   # ventral activation at segment i
 curvature[i] = D[i] − V[i]
 ```
 
+The brain always exposes the same signals to the body:
+
 - **Steering** (`net_turn`): total D − V bias → head turns toward the dominant side
 - **Speed** (`net_speed`): total D + V activity
-- **Direction**: AVB + PVC interneurons drive forward; AVA + AVD + AVE drive reversal
-- **Body wave**: each segment follows the previous (kinematic chain); proprioceptive feedback (`prop_gain`) injects body curvature back into DB/VB neurons, propagating the wave head → tail
+- **Direction** (`locomotion_sign`): AVB + PVC interneurons drive forward; AVA + AVD + AVE drive reversal
+- **Per-segment curvature** (`segment_curvature[]`): the D − V curve along the body
+
+### The body: an oriented chain
+
+The head is placed by the connectome (heading, speed, direction). The rest of the body is reconstructed as an oriented chain — each segment trails the previous one at a fixed distance, bent by a per-segment curvature. **The source of that curvature is what `motor_mode` selects:**
+
+- **`LUDIC_CPG`** — a travelling sine wave (central pattern generator) generates the curvature, guaranteeing a clean, lifelike undulation. The connectome still decides where the head points, how fast it moves, and which way the wave travels. Amplitude scales with speed (never fully stops, thanks to `cpg_idle`).
+- **`BIOLOGICAL_CONNECTOME`** — the curvature is read straight from the brain's `segment_curvature[]` (× `bend_gain`). The body's shape *is* the network's motor output, so the gait reflects whatever the connectome is actually doing.
+
+In both modes, proprioceptive feedback (`prop_gain`) injects the body's real curvature back into DB/VB neurons the next tick, helping the wave propagate head → tail — a delay of one cycle, as in the real animal.
+
+### Sensors
+
+`sensor_mode` controls how sensory input turns into behavior. In `EMERGENT` mode the connectome responds on its own. In `KLINOTAXIS` mode an explicit bias (`klinotaxis_gain`) steers the heading toward whichever smell sensor detects food, making food-seeking dependable — the behavior the real worm performs, made reliable for a pet.
 
 ---
 
